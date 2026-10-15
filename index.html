@@ -130,7 +130,8 @@ details summary{cursor:pointer;font-family:var(--serif);font-size:21px;font-weig
 details summary::-webkit-details-marker{display:none}
 details summary:after{content:"+";color:var(--gold);font-family:var(--sans);font-weight:400}
 details[open] summary:after{content:"–"}
-details p{margin:8px 0 0;color:var(--muted)}
+details p{margin:8px 0 0;color:var(--muted);white-space:pre-line}
+details p.poem{font-family:var(--serif);font-style:italic;font-size:clamp(17px,4.9vw,19px);line-height:1.5;text-align:center;color:var(--ink);margin-top:12px}
 
 footer{text-align:center;padding:30px 16px 50px;font-family:var(--script);font-size:38px;color:var(--rose)}
 footer small{display:block;font-family:var(--sans);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-top:6px}
@@ -350,11 +351,12 @@ const SITE = {
   ],
 
   faqs: [
-    { q: "What should I wear?", a: "Dress code to be confirmed." },
+    { q: "What should I wear?", a: "Formal attire, please: think suits and ties, dresses or smart formal wear. It's April in Wales, so a layer for any photos outside is never a bad idea!" },
     { q: "Are children invited?", a: "Children named on your invitation are very welcome." },
     { q: "Can I bring a plus one?", a: "If your invitation includes a guest, you'll be able to add their name when you RSVP." },
-    { q: "Can I take photos?", a: "To be confirmed." },
-    { q: "Gifts", a: "To be confirmed." }
+    { q: "Can I take photos?", a: "Yes, please! Snap away throughout the day. We'd love to see the day through your eyes, so please share your photos with us on our wedding photo page.",
+      link: "https://picture-portal.netlify.app/", linkLabel: "Upload your photos" },
+    { q: "Gifts", poem: true, a: "Your company is gift enough for us,\nso please don't feel you need to fuss;\nbut if you'd like to help us on our way,\nour honeymoon fund would make our day." }
   ]
 };
 
@@ -422,7 +424,7 @@ function render(){
     + `<div class="btn-row" style="justify-content:flex-start;margin-top:6px">${SITE.venues.map(v=>`<a class="btn ghost" href="${mapsUrl(v.mapsQuery)}" target="_blank" rel="noopener">Open in Google Maps</a>`).join("")}</div>`;
   $("parking").innerHTML = SITE.parking.map((p,i) => `<div class="card"><h3><span class="pill-num">${i+1}</span>${esc(p.title)}</h3><p>${esc(p.text)}</p></div>`).join("");
 
-  $("faqs").innerHTML = SITE.faqs.map(f => `<details><summary>${esc(f.q)}</summary><p>${esc(f.a)}</p></details>`).join("")
+  $("faqs").innerHTML = SITE.faqs.map(f => `<details><summary>${esc(f.q)}</summary><p${f.poem?' class="poem"':""}>${esc(f.a)}</p>${f.link?`<p style="margin-top:12px"><a class="btn" style="padding:11px 20px;font-size:13px" href="${esc(f.link)}" target="_blank" rel="noopener">${esc(f.linkLabel||"Open")}</a></p>`:""}</details>`).join("")
     + (SITE.hostContact?`<p class="center small muted" style="margin-top:16px">Any other questions? Call or text ${esc(SITE.hostContact)}</p>`:"");
 
   $("footer").innerHTML = `${esc(c.first)} &amp; ${esc(c.second)}<small>${esc(SITE.dateText)}</small>`;
