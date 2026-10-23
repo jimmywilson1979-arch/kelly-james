@@ -88,6 +88,7 @@ input[type=text]:focus,textarea:focus{outline:2px solid var(--gold);outline-offs
 .guest .name{font-family:var(--serif);font-size:22px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .tag{font-family:var(--sans);font-size:11px;letter-spacing:.12em;text-transform:uppercase;background:var(--gold-soft);color:#8a5f0a;border-radius:999px;padding:3px 9px;font-weight:500}
 .choice{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.choice.stack{grid-template-columns:1fr}
 .choice label{position:relative;cursor:pointer}
 .choice input{position:absolute;opacity:0}
 .choice label{display:flex}.choice span{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;border:1.5px solid var(--line);border-radius:12px;padding:11px 6px;font-size:15px}
@@ -501,9 +502,9 @@ function showInvite(inv){
     <div class="guest" data-i="${i}">
       <div class="name">${g.plusOne ? "Your guest" : esc(g.name)} ${g.child?`<span class="tag">Child</span>`:""}${g.plusOne?`<span class="tag">Plus one</span>`:""}</div>
       ${g.plusOne?`<label class="field-label" for="po${i}">Their name</label><input type="text" id="po${i}" class="po-name" placeholder="Full name" value="${esc(g.name||"")}">`:""}
-      <div class="choice">
-        <label><input type="radio" name="att${i}" value="yes" ${yes?"checked":""}><span>Joyfully accepts</span></label>
-        <label><input type="radio" name="att${i}" value="no" ${no?"checked":""}><span>Sadly declines</span></label>
+      <div class="choice stack">
+        <label><input type="radio" name="att${i}" value="yes" ${yes?"checked":""}><span>Delighted to attend</span></label>
+        <label><input type="radio" name="att${i}" value="no" ${no?"checked":""}><span>Unfortunately unable to come</span></label>
       </div>
       <div class="diet ${yes?"":"hidden"}">
         <label class="field-label">Meal</label>
