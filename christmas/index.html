@@ -255,6 +255,11 @@ canvas.snow{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-
   if (get("greeting")) card0.querySelector('[data-f="greeting"]').textContent = get("greeting");
   if (get("msg")) card0.querySelector('[data-f="msg"]').textContent = get("msg");
   if (/^https:\/\//.test(get("photo"))) rootStyle.setProperty("--photo", `url("${get("photo").replace(/["\\]/g, "")}")`);
+  // card maker preview (?local=1): the maker sends the photo it is still cropping, before it is uploaded
+  if (get("local") === "1" && window.parent !== window) addEventListener("message", e => {
+    if (e.origin !== location.origin || !e.data || e.data.type !== "xmas-preview-photo") return;
+    if (/^data:image\/(jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(e.data.photo || "")) rootStyle.setProperty("--photo", `url("${e.data.photo}")`);
+  });
   const yr = new Date().getMonth() < 6 ? new Date().getFullYear() - 1 : new Date().getFullYear();
   $("pmYear").textContent = yr;
 

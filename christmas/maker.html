@@ -54,6 +54,22 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-vis
 .photo-box{position:relative;width:100%;aspect-ratio:268/236;border-radius:6px;overflow:hidden;background:#34405F;display:flex;align-items:center;justify-content:center;color:var(--cream);font-size:14px;text-align:center}
 .photo-box canvas{width:100%;height:100%;display:block}
 .photo-box span{padding:0 20px;opacity:.85}
+.photo-box.editing{cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.photo-box.editing.dragging{cursor:grabbing}
+/* the holly sprig the card lays over the bottom-right corner of the photo */
+.photo-box .sprig{position:absolute;left:72.4%;top:83.9%;width:32.1%;height:auto;transform:rotate(-8deg);pointer-events:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
+.photo-box .tip{position:absolute;left:8px;top:8px;background:rgba(19,42,32,.78);color:var(--cream);font-size:12px;letter-spacing:.04em;padding:5px 9px;border-radius:999px;pointer-events:none;transition:opacity .4s}
+.warn{font-size:14px;color:#8A5A00;background:#FBEBC8;border-radius:8px;padding:8px 10px}
+/* full-card preview */
+.pv{position:fixed;inset:0;z-index:50;background:#0B1A13;display:flex;flex-direction:column}
+.pv iframe{flex:1;width:100%;border:0;background:#132A20}
+.pv-bar{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px max(14px,env(safe-area-inset-left,0px));background:#0B1A13;color:var(--cream)}
+.pv-bar.top{padding-top:calc(10px + env(safe-area-inset-top,0px))}
+.pv-bar.bottom{padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));flex-direction:column;align-items:stretch}
+.pv-bar p{margin:0;font-size:14px;opacity:.85;text-align:center}
+.pv-bar .row{flex-wrap:nowrap}
+.pv-bar .btn{min-height:44px;padding:0 14px;font-size:13px;letter-spacing:.05em;white-space:nowrap}
+.pv-bar .btn.ghost{color:var(--cream);border-color:rgba(245,236,220,.35)}
 input[type=range]{width:100%;accent-color:var(--berry)}
 .file{position:relative;overflow:hidden}
 .file input{position:absolute;inset:0;opacity:0;cursor:pointer}
@@ -108,7 +124,9 @@ input[type=range]{width:100%;accent-color:var(--berry)}
     <div class="row">
       <span class="btn ghost file">Choose photo<input type="file" id="photoFile" accept="image/*"></span>
     </div>
-    <label id="posWrap" hidden><span id="posLabel">Move photo</span><input type="range" id="pos" min="0" max="100" value="35"></label>
+    <label id="zoomWrap" hidden><span>Zoom</span><input type="range" id="zoom" min="100" max="300" value="100" step="1" aria-label="Zoom the photo"></label>
+    <p class="help" id="cropHelp" hidden>Drag the photo to move it, pinch or use the slider to zoom. Keep faces clear of the holly in the corner.</p>
+    <div class="warn" id="cropWarn" hidden>This part of the photo is quite small, so it may look soft on the card. Zoom out a little, or use the original photo rather than one saved from WhatsApp or Facebook.</div>
 
     <label>Greeting
       <input type="text" id="greeting" maxlength="60" value="Merry Christmas">
@@ -130,7 +148,7 @@ input[type=range]{width:100%;accent-color:var(--berry)}
     </label>
     <div class="row">
       <button class="btn primary" id="saveCard" type="button">Save card</button>
-      <a class="btn ghost" id="previewCard" href="#" target="_blank" rel="noopener">Preview</a>
+      <button class="btn ghost" id="previewCard" type="button">Preview card</button>
     </div>
     <div class="status" id="cardStatus"></div>
     <button class="linkbtn" id="newCard" type="button" style="color:var(--ink-soft);align-self:flex-start">Start another card</button>
@@ -147,6 +165,22 @@ input[type=range]{width:100%;accent-color:var(--berry)}
     <div class="summary" id="summary"></div>
     <ul class="people" id="people"></ul>
   </section>
+</div>
+
+<!-- full-card preview: the real card page, with the photo you're working on -->
+<div class="pv" id="pv" hidden role="dialog" aria-modal="true" aria-label="Card preview">
+  <div class="pv-bar top">
+    <button class="btn ghost" id="pvBack" type="button">← Back to edit</button>
+    <span style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.7">Preview</span>
+  </div>
+  <iframe id="pvFrame" title="Your card as it will look"></iframe>
+  <div class="pv-bar bottom" id="pvSaveBar" hidden>
+    <p>Tap the envelope to open it. Can you see everyone's face?</p>
+    <div class="row">
+      <button class="btn ghost" id="pvAdjust" type="button" style="flex:0 0 auto">Adjust</button>
+      <button class="btn primary" id="pvSave" type="button">Looks good, save</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -194,9 +228,9 @@ input[type=range]{width:100%;accent-color:var(--berry)}
     $("family").value = c ? c.family : "";
     $("reply").value = c && c.reply ? "0" + c.reply.replace(/^44/, "") : "";
     if (c) $("pickCard").value = c.id;
-    $("posWrap").hidden = true;
+    setCropUI(false);
     const box = $("photoBox");
-    box.innerHTML = c && c.photo_url ? `<canvas width="804" height="708"></canvas>` : `<span>Add your family photo. It fills the top of the card.</span>`;
+    box.innerHTML = c && c.photo_url ? `<canvas width="804" height="708"></canvas>${SPRIG}` : `<span>Add your family photo. It fills the top of the card.</span>`;
     if (c && c.photo_url) { const img = new Image(); img.crossOrigin = "anonymous"; img.onload = () => box.querySelector("canvas").getContext("2d").drawImage(img, 0, 0, 804, 708); img.src = c.photo_url; }
     $("peoplePanel").hidden = !c;
     updatePreview();
@@ -208,42 +242,102 @@ input[type=range]{width:100%;accent-color:var(--berry)}
   ["greeting", "msg", "family"].forEach(id => $(id).addEventListener("input", updatePreview));
 
   function phone(v){ let d = (v || "").replace(/\D/g, ""); if (d.startsWith("0")) d = "44" + d.slice(1); return d; }
-  function updatePreview(){
+  function updatePreview(){ /* the preview is built when it opens */ }
+  function previewUrl(){
     const q = new URLSearchParams({ to: "Your name here", family: $("family").value || "Your family", greeting: $("greeting").value || "Merry Christmas", msg: $("msg").value });
-    if (card && card.photo_url && !crop) q.set("photo", card.photo_url);
-    $("previewCard").href = CARD_URL + "?" + q.toString();
+    if (phone($("reply").value)) q.set("reply", phone($("reply").value));
+    if (crop) q.set("local", "1"); else if (card && card.photo_url) q.set("photo", card.photo_url);
+    return CARD_URL + "?" + q.toString();
   }
+  let previewed = false;
+  function openPreview(withSave){
+    if (!crop && !(card && card.photo_url)) { say("cardStatus", "Choose a photo first.", true); return; }
+    const fr = $("pvFrame");
+    fr.onload = () => { if (crop) fr.contentWindow.postMessage({ type: "xmas-preview-photo", photo: $("photoBox").querySelector("canvas").toDataURL("image/jpeg", .86) }, location.origin); };
+    fr.src = previewUrl();
+    $("pvSaveBar").hidden = !withSave;
+    $("pv").hidden = false; document.body.style.overflow = "hidden";
+    if (crop) previewed = true;
+  }
+  function closePreview(){ $("pv").hidden = true; $("pvFrame").src = "about:blank"; document.body.style.overflow = ""; }
+  $("previewCard").addEventListener("click", () => openPreview(!!crop));
+  $("pvBack").addEventListener("click", closePreview);
+  $("pvAdjust").addEventListener("click", () => { closePreview(); $("photoBox").scrollIntoView({ behavior: "smooth", block: "center" }); });
+  $("pvSave").addEventListener("click", () => { closePreview(); save(); });
+  addEventListener("keydown", e => { if (e.key === "Escape" && !$("pv").hidden) closePreview(); });
 
-  // ---------- photo: crop to the card's window ----------
-  const W = 804, H = 708, R = W / H;
+  // ---------- photo: crop to the card's window (drag to move, pinch or slider to zoom) ----------
+  const W = 804, H = 708;
+  const SPRIG = `<svg class="sprig" viewBox="0 0 120 70" aria-hidden="true"><path d="M58 40 C46 30 30 30 14 22 c4 4 2 8 -2 9 c5 2 6 6 3 9 c6 0 8 3 7 7 c5-2 9 0 10 4 c4-4 9-4 12-1 c2-5 7-7 14-10z" fill="#2F5A3A"/><path d="M62 40 C74 28 90 26 106 16 c-3 5 -1 8 3 9 c-5 2 -5 6 -2 9 c-6 1 -8 4 -6 8 c-5-1 -9 1 -9 5 c-4-3 -9-3 -12 1 c-2-5 -7-7 -14-8z" fill="#3A6B45"/><circle cx="56" cy="44" r="6.2" fill="#B8202F"/><circle cx="66" cy="45" r="6.2" fill="#C8303F"/><circle cx="61" cy="36" r="6.2" fill="#A81C2A"/></svg>`;
+  function setCropUI(on){
+    $("zoomWrap").hidden = $("cropHelp").hidden = !on;
+    if (!on) $("cropWarn").hidden = true;
+    $("photoBox").classList.toggle("editing", on);
+  }
   $("photoFile").addEventListener("change", e => {
     const f = e.target.files[0]; if (!f) return;
     const img = new Image();
     img.onload = () => {
-      crop = { img, wide: img.width / img.height > R };
-      $("posLabel").textContent = crop.wide ? "Move photo left or right" : "Move photo up or down";
-      $("pos").value = crop.wide ? 50 : 30;
-      $("posWrap").hidden = crop.wide ? Math.abs(img.width / img.height - R) < .02 : Math.abs(img.width / img.height - R) < .02;
-      $("photoBox").innerHTML = `<canvas width="${W}" height="${H}"></canvas>`;
-      drawCrop(); updatePreview();
-      say("cardStatus", "Photo ready. Tap Save card to use it.");
+      // start centred; on tall photos sit nearer the top, where heads usually are
+      const s0 = Math.max(W / img.width, H / img.height), sh = H / s0;
+      crop = { img, s0, zoom: 1, cx: img.width / 2, cy: Math.min(img.height / 2, sh / 2 + (img.height - sh) * .3) };
+      $("zoom").value = 100; previewed = false;
+      $("photoBox").innerHTML = `<canvas width="${W}" height="${H}"></canvas>${SPRIG}<span class="tip" id="cropTip">Drag to move · pinch to zoom</span>`;
+      setTimeout(() => { const t = $("cropTip"); if (t) t.style.opacity = 0; }, 3500);
+      setCropUI(true); drawCrop();
+      say("cardStatus", "Position the photo, then tap Preview card to check it.");
     };
     img.onerror = () => say("cardStatus", "That file couldn't be opened as a photo. Try a JPEG or PNG.", true);
     img.src = URL.createObjectURL(f);
   });
-  $("pos").addEventListener("input", drawCrop);
+  function view(){
+    const { img, s0, zoom } = crop, s = s0 * zoom, sw = W / s, sh = H / s;
+    crop.cx = Math.min(Math.max(crop.cx, sw / 2), img.width - sw / 2);
+    crop.cy = Math.min(Math.max(crop.cy, sh / 2), img.height - sh / 2);
+    return { s, sw, sh, sx: crop.cx - sw / 2, sy: crop.cy - sh / 2 };
+  }
   function drawCrop(){
     if (!crop) return;
-    const { img, wide } = crop, t = $("pos").value / 100;
-    let sw, sh, sx, sy;
-    if (wide) { sh = img.height; sw = sh * R; sx = (img.width - sw) * t; sy = 0; }
-    else { sw = img.width; sh = sw / R; sx = 0; sy = (img.height - sh) * t; }
-    const ctx = $("photoBox").querySelector("canvas").getContext("2d");
-    ctx.imageSmoothingQuality = "high"; ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+    const v = view(), cv = $("photoBox").querySelector("canvas"), ctx = cv.getContext("2d");
+    ctx.imageSmoothingQuality = "high"; ctx.drawImage(crop.img, v.sx, v.sy, v.sw, v.sh, 0, 0, W, H);
+    $("cropWarn").hidden = v.sw >= 560;   // fewer than ~560 source pixels across the card looks soft on big phones
+    previewed = false;
   }
+  $("zoom").addEventListener("input", () => { if (!crop) return; crop.zoom = $("zoom").value / 100; drawCrop(); });
+
+  // drag with one finger or the mouse, pinch with two
+  const pts = new Map(); let pinch0 = null;
+  const box = $("photoBox");
+  box.addEventListener("pointerdown", e => {
+    if (!crop) return;
+    box.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    box.classList.add("dragging"); const t = $("cropTip"); if (t) t.style.opacity = 0;
+    if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = { d: Math.hypot(a.x - b.x, a.y - b.y), zoom: crop.zoom }; }
+  });
+  box.addEventListener("pointermove", e => {
+    if (!crop || !pts.has(e.pointerId)) return;
+    const prev = pts.get(e.pointerId), now = { x: e.clientX, y: e.clientY };
+    pts.set(e.pointerId, now);
+    if (pts.size === 2 && pinch0) {
+      const [a, b] = [...pts.values()];
+      crop.zoom = Math.min(3, Math.max(1, pinch0.zoom * Math.hypot(a.x - b.x, a.y - b.y) / (pinch0.d || 1)));
+      $("zoom").value = Math.round(crop.zoom * 100);
+    } else if (pts.size === 1) {
+      const k = W / box.clientWidth / (crop.s0 * crop.zoom);   // screen px → photo px
+      crop.cx -= (now.x - prev.x) * k; crop.cy -= (now.y - prev.y) * k;
+    }
+    drawCrop();
+  });
+  const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch0 = null; if (!pts.size) box.classList.remove("dragging"); };
+  box.addEventListener("pointerup", up); box.addEventListener("pointercancel", up);
+  box.addEventListener("wheel", e => { if (!crop) return; e.preventDefault(); crop.zoom = Math.min(3, Math.max(1, crop.zoom * (e.deltaY < 0 ? 1.06 : 1 / 1.06))); $("zoom").value = Math.round(crop.zoom * 100); drawCrop(); }, { passive: false });
 
   // ---------- save ----------
-  $("saveCard").addEventListener("click", async () => {
+  $("saveCard").addEventListener("click", () => {
+    if (crop && !previewed) { if (!$("family").value.trim()) { say("cardStatus", "Add who it's signed from, e.g. James, Kelly & family.", true); $("family").focus(); return; } return openPreview(true); }
+    save();
+  });
+  async function save(){
     const family = $("family").value.trim();
     if (!family) { say("cardStatus", "Add who it's signed from, e.g. James, Kelly & family.", true); $("family").focus(); return; }
     if (!crop && !(card && card.photo_url)) { say("cardStatus", "Choose a photo first.", true); return; }
@@ -261,12 +355,12 @@ input[type=range]{width:100%;accent-color:var(--berry)}
       }
       const { data, error } = await sb.from("xmas_cards").update(row).eq("id", card.id).select().single();
       if (error) throw error;
-      card = data; crop = null; $("posWrap").hidden = true; $("photoFile").value = "";
+      card = data; crop = null; setCropUI(false); $("photoFile").value = "";
       say("cardStatus", "Saved. Now add who it's for.");
       await loadCards(card.id);
     } catch (err) { say("cardStatus", "Couldn't save: " + (err.message || err), true); }
     $("saveCard").disabled = false;
-  });
+  }
 
   // ---------- people ----------
   async function loadPeople(){
