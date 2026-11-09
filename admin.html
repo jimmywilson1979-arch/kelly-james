@@ -95,6 +95,15 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .dot.yes{background:#d9efe0;color:#2e7d4f} .dot.no{background:var(--rose-soft);color:var(--rose)} .dot.wait{background:var(--grey-soft);color:var(--muted)}
 .tag{font-size:11px;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:2px 7px;background:var(--gold-soft);color:#8a5f0a;font-weight:500}
 .tag.veg{background:var(--sage-soft);color:#2e5e33}
+.tag.allergy{background:var(--rose);color:#fff}
+.inv.has-allergy{border:2px solid var(--rose);box-shadow:0 0 0 3px var(--rose-soft)}
+.badge.allergy{background:var(--rose);color:#fff}
+.inv .badges{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.glist .nm .allergy-note{display:block;margin-top:5px;background:var(--rose-soft);color:var(--rose);border-left:4px solid var(--rose);border-radius:8px;padding:6px 10px;font-size:14px;font-weight:600}
+.allergy-alert{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--rose-soft);color:var(--rose);border:2px solid var(--rose);border-radius:14px;padding:12px 14px;margin:0 0 16px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+.allergy-alert span{font-weight:400;text-decoration:underline;margin-left:auto;white-space:nowrap}
+.diet-item{display:block;background:var(--rose-soft);border-left:4px solid var(--rose);border-radius:8px;padding:8px 10px;margin:8px 0}
+.diet-item .what{color:var(--rose);font-weight:600}
 .inv .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .extra{font-size:14px;color:var(--muted);margin-top:8px;background:var(--grey-soft);border-radius:10px;padding:8px 10px}
 .extra b{color:var(--ink);font-weight:500}
@@ -166,6 +175,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 
   <div class="wrap">
     <div class="stats" id="stats"></div>
+    <button class="allergy-alert hidden" id="allergyAlert" type="button"></button>
 
     <div class="tabs" id="tabs">
       <button class="tab on" data-tab="guests" type="button">Guest list</button>
@@ -188,6 +198,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
         <button class="chip" data-f="replied" type="button">Replied</button>
         <button class="chip" data-f="coming" type="button">Has someone coming</button>
         <button class="chip" data-f="declined" type="button">Has a decline</button>
+        <button class="chip" data-f="allergy" type="button">⚠ Allergies</button>
       </div>
       <div id="invList"><div class="loading">Loading…</div></div>
     </section>
@@ -383,6 +394,9 @@ function renderStats(){
     <div class="stat waiting"><b>${wait.length}</b><span>Awaiting reply</span><small>of ${G.length} invited</small>
       <div class="bar"><i style="width:${pc(yes.length)}%;background:#2e7d4f"></i><i style="width:${pc(no.length)}%;background:var(--rose)"></i></div></div>`;
   $("nChase").textContent = R.filter(i => !i.replied_at).length;
+  const al = yes.filter(hasAllergy);
+  $("allergyAlert").classList.toggle("hidden", !al.length);
+  $("allergyAlert").innerHTML = al.length ? `⚠ ${al.length} ${al.length === 1 ? "guest has an allergy or dietary need" : "guests have allergies or dietary needs"} <span>Show</span>` : "";
 }
 
 function invMatches(i){
@@ -393,12 +407,15 @@ function invMatches(i){
   if (filter === "replied") return !!i.replied_at;
   if (filter === "coming") return i.guests.some(g => g.attending === true);
   if (filter === "declined") return i.guests.some(g => g.attending === false);
+  if (filter === "allergy") return i.guests.some(hasAllergy);
   return true;
 }
+// Any allergy or dietary need from a guest who is coming gets shown in red so it can't be missed
+const hasAllergy = g => g.attending === true && !!(g.dietary && g.dietary.trim());
 function guestLine(g){
   const d = g.attending === true ? `<span class="dot yes" title="Coming">✓</span>` : g.attending === false ? `<span class="dot no" title="Not coming">✕</span>` : `<span class="dot wait" title="No reply yet">?</span>`;
-  const tags = [g.is_child ? `<span class="tag">Child</span>` : "", g.attending && g.meal === "veg" ? `<span class="tag veg">Veggie</span>` : ""].join(" ");
-  return `<li>${d}<div class="nm">${esc(gName(g))} ${tags}${g.attending && g.dietary ? `<small>⚠ ${esc(g.dietary)}</small>` : ""}</div></li>`;
+  const tags = [g.is_child ? `<span class="tag">Child</span>` : "", g.attending && g.meal === "veg" ? `<span class="tag veg">Veggie</span>` : "", hasAllergy(g) ? `<span class="tag allergy">⚠ Allergy</span>` : ""].join(" ");
+  return `<li>${d}<div class="nm">${esc(gName(g))} ${tags}${hasAllergy(g) ? `<span class="allergy-note">⚠ ${esc(g.dietary)}</span>` : ""}</div></li>`;
 }
 function renderList(){
   const sel = $("sideF").value;
@@ -407,11 +424,11 @@ function renderList(){
   const list = invites.filter(invMatches);
   if (!list.length){ $("invList").innerHTML = `<div class="empty">No invitations match.</div>`; return; }
   $("invList").innerHTML = list.map(i => `
-    <div class="inv ${isTest(i)?"test":""}">
+    <div class="inv ${isTest(i)?"test":""} ${i.guests.some(hasAllergy)?"has-allergy":""}">
       <div class="head">
         <div class="title"><div class="party">${esc(i.party_name)}</div>
           <div class="meta">${i.side?esc(i.side)+" · ":""}<span class="code">${esc(i.code)}</span> · ${i.guests.length} ${i.guests.length===1?"guest":"guests"}</div></div>
-        ${isTest(i) ? `<span class="badge test">Test</span>` : i.replied_at ? `<span class="badge replied">Replied ${esc(fmtDate(i.replied_at))}</span>` : `<span class="badge waiting">Not replied</span>`}
+        <div class="badges">${isTest(i) ? `<span class="badge test">Test</span>` : i.replied_at ? `<span class="badge replied">Replied ${esc(fmtDate(i.replied_at))}</span>` : `<span class="badge waiting">Not replied</span>`}${i.guests.some(hasAllergy) ? `<span class="badge allergy">⚠ Allergy</span>` : ""}</div>
       </div>
       <ul class="glist">${i.guests.map(guestLine).join("")}</ul>
       ${i.song || i.note ? `<div class="extra">${i.song?`🎵 <b>${esc(i.song)}</b>`:""}${i.song&&i.note?"<br>":""}${i.note?`💬 ${esc(i.note)}`:""}</div>` : ""}
@@ -447,7 +464,7 @@ function renderMeals(){
       ${line("Guests coming", yes.length)}${line("Adults", adults.length)}${line("Children", kids.length)}
       ${line("Set menu", set.length)}${line("Vegetarian", veg.length)}${line("With allergies / dietary needs", diet.length)}</div>
     <div class="panel"><h3>Vegetarian</h3>${veg.length ? veg.map(g => line(esc(gName(g)), `<span style="font-weight:400;color:var(--muted)">${esc(g.party)}</span>`)).join("") : `<div class="empty" style="padding:10px">None yet</div>`}</div>
-    <div class="panel"><h3>Allergies &amp; dietary needs</h3>${diet.length ? diet.map(g => `<div class="rowline" style="display:block"><b>${esc(gName(g))}</b> <span style="color:var(--muted);font-size:13px">(${esc(g.party)})</span><br>${esc(g.dietary)}</div>`).join("") : `<div class="empty" style="padding:10px">None yet</div>`}</div>
+    <div class="panel"><h3>Allergies &amp; dietary needs</h3>${diet.length ? diet.map(g => `<div class="diet-item"><b>${esc(gName(g))}</b> <span style="color:var(--muted);font-size:13px">(${esc(g.party)})</span><br><span class="what">⚠ ${esc(g.dietary)}</span></div>`).join("") : `<div class="empty" style="padding:10px">None yet</div>`}</div>
     ${kids.length ? `<div class="panel"><h3>Children coming</h3>${kids.map(g => line(esc(gName(g)), `<span style="font-weight:400;color:var(--muted)">${esc(g.party)}</span>`)).join("")}</div>` : ""}`;
 }
 
@@ -465,6 +482,7 @@ $("tabs").onclick = e => {
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t === b));
   document.querySelectorAll("[data-pane]").forEach(p => p.classList.toggle("hidden", p.dataset.pane !== tab));
 };
+$("allergyAlert").onclick = () => { filter = "allergy"; document.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x.dataset.f === "allergy")); document.querySelector('.tab[data-tab="guests"]').click(); renderList(); $("chips").scrollIntoView({behavior:"smooth", block:"start"}); };
 $("chips").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; filter = c.dataset.f; document.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === c)); renderList(); };
 $("q").oninput = renderList; $("sideF").onchange = renderList;
 document.addEventListener("click", e => {
